@@ -1,0 +1,20 @@
+# Local development database (PostgreSQL 17 + PostGIS 3.5).
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    container_name: locafy-db
+    environment:
+      POSTGRES_USER: locafy
+      POSTGRES_PASSWORD: locafy_dev_pw
+      POSTGRES_DB: locafy
+    ports:
+      - "54329:5432"
+    volumes:
+      - locafy-db:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U locafy"]
+      interval: 5s
+      retries: 10
+volumes:
+  locafy-db:

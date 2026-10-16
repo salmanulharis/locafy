@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Locafy
 
-## Getting Started
+**Find what you need. Compare nearby options. Know what is available. Find the shop.**
 
-First, run the development server:
+Locafy is a local product discovery, price comparison and shop visibility platform. Customers search for a product and see which nearby shops stock it, at what price, how fresh the stock information is, and how to get there. Shop owners get a free digital storefront with product, stock, offer and enquiry management. Administrators approve shops and moderate the platform.
+
+- Web-first, mobile-first responsive Next.js app (installable PWA)
+- Versioned JSON API (`/api/v1`) sharing the same services, ready for native Android/iOS apps
+- PostgreSQL + PostGIS for data integrity and geographic search
+
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | System design, domains, data model |
+| [docs/conventions.md](docs/conventions.md) | How to add code (layers, forms, API, UI rules) |
+| [docs/api.md](docs/api.md) | API v1 reference, auth, errors, pagination, rate limits |
+| [docs/mobile.md](docs/mobile.md) | Native app integration strategy |
+| [docs/search.md](docs/search.md) | Matching, ranking, sponsored results |
+| [docs/security.md](docs/security.md) | Security controls |
+| [docs/decisions.md](docs/decisions.md) | Significant decisions and assumptions |
+| [docs/deployment.md](docs/deployment.md) | Production setup, jobs, backups and recovery |
+| [docs/integrations.md](docs/integrations.md) | External services: status and setup |
+| [docs/database.md](docs/database.md) | Schema reference and migrations |
+| [docs/design-system.md](docs/design-system.md) | Blue + Slate colour tokens, contrast, usage rules |
+
+## Requirements
+
+- Node.js ≥ 20.9 (developed on 24), pnpm 11
+- Docker (for the local PostGIS database) — or any PostgreSQL ≥ 15 with PostGIS
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+cp .env.example .env              # defaults work with the Docker database
+pnpm db:up                         # PostgreSQL 17 + PostGIS on localhost:54329 (creates locafy, locafy_test, locafy_e2e)
+pnpm db:migrate                    # apply migrations
+pnpm db:seed                       # reference data: categories, plans, synonyms, localities
+pnpm db:seed:demo                  # OPTIONAL dev-only demo shops/products around Kochi
+pnpm dev                           # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Demo accounts (only after `db:seed:demo`, password `Demo-pass-123`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Email | Role |
+|---|---|
+| `admin@locafy.test` | Super admin (`/admin`) |
+| `merchant1@locafy.test` | Owner of "Demo Mobiles Edappally" |
+| `merchant2@locafy.test` | Owner of "Demo Fresh Mart Kakkanad" |
+| `merchant3@locafy.test` | Owner of "Demo Hardware Vyttila" (stock deliberately 20 days old) |
+| `customer@locafy.test` | Customer |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All demo shop names start with "Demo"; their prices and stock are illustrative only. Never run the demo seed outside development (it refuses when `NODE_ENV=production`).
 
-## Learn More
+Useful scripts:
 
-To learn more about Next.js, take a look at the following resources:
+| Command | Purpose |
+|---|---|
+| `pnpm db:reset` | Drop and rebuild the local database (refuses non-local hosts) |
+| `pnpm db:generate` | Generate a migration after editing `src/db/schema.ts` |
+| `ADMIN_PASSWORD=… pnpm db:create-admin you@example.com "Your Name"` | Create/promote a super admin |
+| `pnpm typecheck` / `pnpm lint` / `pnpm format` | Static checks |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tests
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm test:unit           # pure business rules
+pnpm test:integration    # services against TEST_DATABASE_URL (reset automatically)
+pnpm build && pnpm test:e2e   # Playwright against a production build on :3100 using E2E_DATABASE_URL
+```
 
-## Deploy on Vercel
+Integration and E2E tests each use their own disposable database and never touch development data.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Production
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [docs/deployment.md](docs/deployment.md). In short: provision Postgres with PostGIS, set the environment variables, `pnpm build`, `pnpm db:migrate`, `pnpm db:seed`, create an admin, `pnpm start` behind HTTPS, monitor `GET /api/health`.
+
+## Environment variables
+
+See [.env.example](.env.example) — every variable is documented there. Required in production: `DATABASE_URL`, `APP_URL`, `NODE_ENV=production`; plus storage, geocoder contact and (once implemented) mail settings.
+
+## Project status
+
+This is an MVP for a controlled pilot. Not yet implemented: real email delivery, online payments, push notifications, email verification/MFA, bulk import, offline mode. See the deferred list in [docs/decisions.md](docs/decisions.md) and [docs/integrations.md](docs/integrations.md).

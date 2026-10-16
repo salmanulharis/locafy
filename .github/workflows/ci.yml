@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: locafy
+          POSTGRES_PASSWORD: locafy_dev_pw
+          POSTGRES_DB: locafy
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U locafy" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://locafy:locafy_dev_pw@localhost:54329/locafy
+      TEST_DATABASE_URL: postgres://locafy:locafy_dev_pw@localhost:54329/locafy_test
+      E2E_DATABASE_URL: postgres://locafy:locafy_dev_pw@localhost:54329/locafy_e2e
+      APP_URL: http://localhost:3100
+      GEOCODER_URL: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create test databases
+        run: |
+          PGPASSWORD=locafy_dev_pw psql -h localhost -p 54329 -U locafy -d locafy -c "create database locafy_test" -c "create database locafy_e2e"
+      - run: cp .env.example .env
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test:unit
+      - run: pnpm test:integration
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report

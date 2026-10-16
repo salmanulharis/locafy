@@ -1,0 +1,2 @@
+CREATE DATABASE locafy_test;
+CREATE DATABASE locafy_e2e;
